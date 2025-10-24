@@ -33,6 +33,49 @@
             backdrop-filter: blur(10px);
         }
 
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 25px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+
+        .filter-btn.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .filter-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .timer {
+            text-align: center;
+            margin: 15px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            font-size: 1.1em;
+        }
+
+        .timer-number {
+            font-weight: bold;
+            color: #667eea;
+            font-size: 1.3em;
+        }
+
         .signal {
             background: rgba(255, 255, 255, 0.08);
             border-radius: 12px;
@@ -100,6 +143,7 @@
             text-align: center;
             color: #888;
             font-style: italic;
+            padding: 20px;
         }
 
         .error {
@@ -117,6 +161,7 @@
             gap: 15px;
             margin-top: 10px;
             font-size: 0.9em;
+            flex-wrap: wrap;
         }
 
         .status-item {
@@ -135,6 +180,31 @@
         .status-dot.active {
             background: #44ff44;
         }
+
+        .signal-type-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            margin-left: 5px;
+        }
+
+        .crypto-badge {
+            background: rgba(102, 126, 234, 0.3);
+            color: #667eea;
+        }
+
+        .forex-badge {
+            background: rgba(255, 193, 7, 0.3);
+            color: #ffc107;
+        }
+
+        .no-signals {
+            text-align: center;
+            color: #888;
+            padding: 40px 20px;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
@@ -142,14 +212,25 @@
         <div class="header">
             <h1>🎯 Live Trading Signals</h1>
             <p>⏰ Updates every minute</p>
+            
+            <div class="controls">
+                <button class="filter-btn active" data-filter="all">All Signals</button>
+                <button class="filter-btn" data-filter="crypto">Crypto Only</button>
+                <button class="filter-btn" data-filter="forex">Forex Only</button>
+            </div>
+
+            <div class="timer">
+                Next signal in: <span class="timer-number" id="countdown">60</span> seconds
+            </div>
+
             <div class="api-status">
                 <div class="status-item">
                     <div class="status-dot active" id="statusCrypto"></div>
-                    <span>Crypto</span>
+                    <span>Crypto API</span>
                 </div>
                 <div class="status-item">
                     <div class="status-dot active" id="statusForex"></div>
-                    <span>Forex</span>
+                    <span>Forex API</span>
                 </div>
             </div>
         </div>
@@ -166,12 +247,51 @@
                 this.timeframes = ["3 MIN", "5 MIN", "7 MIN", "10 MIN", "15 MIN"];
                 this.amounts = ["1k", "1.5k", "2k", "2.5k", "3k"];
                 this.container = document.getElementById('signalsContainer');
+                this.countdownElement = document.getElementById('countdown');
+                
+                this.currentFilter = 'all';
+                this.signals = [];
+                this.nextSignalTime = Date.now() + 60000;
+                this.countdownInterval = null;
                 
                 // API endpoints
                 this.apis = {
                     crypto: 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,cardano,polkadot,litecoin,ripple&vs_currencies=usd&include_24hr_change=true',
                     forex: 'https://api.frankfurter.app/latest?from=USD'
                 };
+
+                this.initEventListeners();
+                this.startCountdown();
+            }
+
+            initEventListeners() {
+                // Фильтры
+                document.querySelectorAll('.filter-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                        e.target.classList.add('active');
+                        this.currentFilter = e.target.dataset.filter;
+                        this.renderSignals();
+                    });
+                });
+            }
+
+            startCountdown() {
+                this.updateCountdown();
+                this.countdownInterval = setInterval(() => {
+                    this.updateCountdown();
+                }, 1000);
+            }
+
+            updateCountdown() {
+                const now = Date.now();
+                const timeLeft = Math.max(0, Math.floor((this.nextSignalTime - now) / 1000));
+                
+                this.countdownElement.textContent = timeLeft;
+                
+                if (timeLeft === 0) {
+                    this.nextSignalTime = now + 60000;
+                }
             }
 
             // Получение данных с CoinGecko API
@@ -190,7 +310,6 @@
                         'ripple': 'XRP/USD'
                     };
 
-                    // Выбираем случайную крипту
                     const cryptoIds = Object.keys(cryptoMap);
                     const randomCryptoId = cryptoIds[Math.floor(Math.random() * cryptoIds.length)];
                     const cryptoData = data[randomCryptoId];
@@ -204,7 +323,8 @@
                         emoji: cryptoData.usd_24h_change > 0 ? "🟢" : "🔴",
                         price: `$${cryptoData.usd.toLocaleString()}`,
                         change: cryptoData.usd_24h_change,
-                        timestamp: new Date().toLocaleTimeString()
+                        timestamp: new Date().toLocaleTimeString(),
+                        id: Date.now() + Math.random()
                     };
                 } catch (error) {
                     console.error('Crypto API Error:', error);
@@ -224,7 +344,6 @@
                     const randomPair = forexPairs[Math.floor(Math.random() * forexPairs.length)];
                     const rate = data.rates[randomPair];
                     
-                    // Имитация изменения цены для сигнала
                     const mockChange = (Math.random() - 0.5) * 2;
                     
                     return {
@@ -236,7 +355,8 @@
                         emoji: mockChange > 0 ? "🟢" : "🔴",
                         price: rate.toFixed(4),
                         change: mockChange,
-                        timestamp: new Date().toLocaleTimeString()
+                        timestamp: new Date().toLocaleTimeString(),
+                        id: Date.now() + Math.random()
                     };
                 } catch (error) {
                     console.error('Forex API Error:', error);
@@ -259,10 +379,11 @@
                     time: this.timeframes[Math.floor(Math.random() * this.timeframes.length)],
                     direction: direction,
                     emoji: direction === "UP" ? "🟢" : "🔴",
-                    price: type === 'crypto' ? `$${(Math.random() * 50000).toLocaleString()}` : (Math.random() * 2).toFixed(4),
+                    price: type === 'crypto' ? `$${(Math.random() * 50000).toFixed(2)}` : (Math.random() * 2).toFixed(4),
                     change: mockChange,
                     timestamp: new Date().toLocaleTimeString(),
-                    isMock: true
+                    isMock: true,
+                    id: Date.now() + Math.random()
                 };
             }
 
@@ -273,15 +394,42 @@
                 }
             }
 
-            displaySignal(signal) {
+            renderSignals() {
+                this.container.innerHTML = '';
+                
+                const filteredSignals = this.signals.filter(signal => {
+                    if (this.currentFilter === 'all') return true;
+                    return signal.type === this.currentFilter;
+                });
+
+                if (filteredSignals.length === 0) {
+                    this.container.innerHTML = `
+                        <div class="no-signals">
+                            No ${this.currentFilter === 'all' ? '' : this.currentFilter} signals yet
+                        </div>
+                    `;
+                    return;
+                }
+
+                filteredSignals.forEach(signal => {
+                    this.createSignalElement(signal);
+                });
+            }
+
+            createSignalElement(signal) {
                 const signalElement = document.createElement('div');
                 signalElement.className = `signal ${signal.direction.toLowerCase()}`;
                 
                 const changeClass = signal.change > 0 ? 'change-up' : 'change-down';
                 const changeSign = signal.change > 0 ? '+' : '';
+                const typeBadge = signal.type === 'crypto' ? 'crypto-badge' : 'forex-badge';
+                const typeText = signal.type === 'crypto' ? 'CRYPTO' : 'FOREX';
                 
                 signalElement.innerHTML = `
-                    <div class="signal-emoji">${signal.emoji} SIGNAL ${signal.emoji}</div>
+                    <div class="signal-emoji">
+                        ${signal.emoji} SIGNAL ${signal.emoji}
+                        <span class="signal-type-badge ${typeBadge}">${typeText}</span>
+                    </div>
                     <div class="signal-info">
                         <div class="signal-item">
                             <span>💱</span>
@@ -310,25 +458,16 @@
                         </div>
                     </div>
                     <div class="timestamp">
-                        🕐 ${signal.timestamp} • ${signal.type.toUpperCase()} 
+                        🕐 ${signal.timestamp}
                         ${signal.isMock ? '• 🔄 MOCK DATA' : '• ✅ LIVE DATA'}
                     </div>
                 `;
 
-                if (this.container.firstChild) {
-                    this.container.insertBefore(signalElement, this.container.firstChild);
-                } else {
-                    this.container.appendChild(signalElement);
-                }
-
-                if (this.container.children.length > 6) {
-                    this.container.removeChild(this.container.lastChild);
-                }
+                this.container.appendChild(signalElement);
             }
 
             async generateSignal() {
                 try {
-                    // Чередуем между crypto и forex
                     const useCrypto = Math.random() > 0.5;
                     let signal;
                     
@@ -348,13 +487,21 @@
                         }
                     }
                     
-                    this.displaySignal(signal);
+                    // Добавляем сигнал в начало массива
+                    this.signals.unshift(signal);
+                    
+                    // Ограничиваем количество сигналов
+                    if (this.signals.length > 20) {
+                        this.signals = this.signals.slice(0, 20);
+                    }
+                    
+                    this.renderSignals();
                     
                 } catch (error) {
                     console.error('Error generating signal:', error);
-                    // Fallback to mock data
                     const mockSignal = this.generateMockSignal(Math.random() > 0.5 ? 'crypto' : 'forex');
-                    this.displaySignal(mockSignal);
+                    this.signals.unshift(mockSignal);
+                    this.renderSignals();
                 }
             }
 
@@ -369,7 +516,7 @@
                     this.generateSignal();
                 }, 60000);
 
-                console.log('🚀 Trading Signal Bot Started with Real APIs!');
+                console.log('🚀 Trading Signal Bot Started!');
             }
         }
 
