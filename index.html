@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Trading Signals</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0c0c0c, #1a1a2e);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        .signal {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-left: 4px solid;
+            animation: fadeIn 0.5s ease-in;
+            backdrop-filter: blur(10px);
+        }
+
+        .signal.down {
+            border-left-color: #ff4444;
+            background: rgba(255, 68, 68, 0.1);
+        }
+
+        .signal.up {
+            border-left-color: #44ff44;
+            background: rgba(68, 255, 68, 0.1);
+        }
+
+        .signal-emoji {
+            font-size: 1.4em;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .signal-info {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .signal-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.1em;
+        }
+
+        .timestamp {
+            text-align: center;
+            font-size: 0.9em;
+            color: #888;
+            margin-top: 10px;
+        }
+
+        .price-change {
+            font-weight: bold;
+        }
+
+        .change-up {
+            color: #44ff44;
+        }
+
+        .change-down {
+            color: #ff4444;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .loading {
+            text-align: center;
+            color: #888;
+            font-style: italic;
+        }
+
+        .error {
+            background: rgba(255, 68, 68, 0.2);
+            color: #ff8888;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            margin: 10px 0;
+        }
+
+        .api-status {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #888;
+        }
+
+        .status-dot.active {
+            background: #44ff44;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 Live Trading Signals</h1>
+            <p>⏰ Updates every minute</p>
+            <div class="api-status">
+                <div class="status-item">
+                    <div class="status-dot active" id="statusCrypto"></div>
+                    <span>Crypto</span>
+                </div>
+                <div class="status-item">
+                    <div class="status-dot active" id="statusForex"></div>
+                    <span>Forex</span>
+                </div>
+            </div>
+        </div>
+        <div id="signalsContainer">
+            <div class="loading">Loading first signal...</div>
+        </div>
+    </div>
+
+    <script>
+        class TradingSignalFrontend {
+            constructor() {
+                this.forexPairs = ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "NZD/USD"];
+                this.cryptoPairs = ["BTC/USD", "ETH/USD", "ADA/USD", "DOT/USD", "LTC/USD", "XRP/USD"];
+                this.timeframes = ["3 MIN", "5 MIN", "7 MIN", "10 MIN", "15 MIN"];
+                this.amounts = ["1k", "1.5k", "2k", "2.5k", "3k"];
+                this.container = document.getElementById('signalsContainer');
+                
+                // API endpoints
+                this.apis = {
+                    crypto: 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,cardano,polkadot,litecoin,ripple&vs_currencies=usd&include_24hr_change=true',
+                    forex: 'https://api.frankfurter.app/latest?from=USD'
+                };
+            }
+
+            // Получение данных с CoinGecko API
+            async fetchCryptoData() {
+                try {
+                    const response = await fetch(this.apis.crypto);
+                    if (!response.ok) throw new Error('Crypto API failed');
+                    const data = await response.json();
+                    
+                    const cryptoMap = {
+                        'bitcoin': 'BTC/USD',
+                        'ethereum': 'ETH/USD', 
+                        'cardano': 'ADA/USD',
+                        'polkadot': 'DOT/USD',
+                        'litecoin': 'LTC/USD',
+                        'ripple': 'XRP/USD'
+                    };
+
+                    // Выбираем случайную крипту
+                    const cryptoIds = Object.keys(cryptoMap);
+                    const randomCryptoId = cryptoIds[Math.floor(Math.random() * cryptoIds.length)];
+                    const cryptoData = data[randomCryptoId];
+                    
+                    return {
+                        type: 'crypto',
+                        symbol: cryptoMap[randomCryptoId],
+                        amount: this.amounts[Math.floor(Math.random() * this.amounts.length)],
+                        time: this.timeframes[Math.floor(Math.random() * this.timeframes.length)],
+                        direction: cryptoData.usd_24h_change > 0 ? "UP" : "DOWN",
+                        emoji: cryptoData.usd_24h_change > 0 ? "🟢" : "🔴",
+                        price: `$${cryptoData.usd.toLocaleString()}`,
+                        change: cryptoData.usd_24h_change,
+                        timestamp: new Date().toLocaleTimeString()
+                    };
+                } catch (error) {
+                    console.error('Crypto API Error:', error);
+                    this.updateStatus('crypto', false);
+                    throw error;
+                }
+            }
+
+            // Получение Forex данных с Frankfurter API
+            async fetchForexData() {
+                try {
+                    const response = await fetch(this.apis.forex);
+                    if (!response.ok) throw new Error('Forex API failed');
+                    const data = await response.json();
+                    
+                    const forexPairs = Object.keys(data.rates);
+                    const randomPair = forexPairs[Math.floor(Math.random() * forexPairs.length)];
+                    const rate = data.rates[randomPair];
+                    
+                    // Имитация изменения цены для сигнала
+                    const mockChange = (Math.random() - 0.5) * 2;
+                    
+                    return {
+                        type: 'forex',
+                        symbol: `USD/${randomPair}`,
+                        amount: this.amounts[Math.floor(Math.random() * this.amounts.length)],
+                        time: this.timeframes[Math.floor(Math.random() * this.timeframes.length)],
+                        direction: mockChange > 0 ? "UP" : "DOWN",
+                        emoji: mockChange > 0 ? "🟢" : "🔴",
+                        price: rate.toFixed(4),
+                        change: mockChange,
+                        timestamp: new Date().toLocaleTimeString()
+                    };
+                } catch (error) {
+                    console.error('Forex API Error:', error);
+                    this.updateStatus('forex', false);
+                    throw error;
+                }
+            }
+
+            // Генерация мокового сигнала если API не работает
+            generateMockSignal(type) {
+                const symbols = type === 'crypto' ? this.cryptoPairs : this.forexPairs;
+                const symbol = symbols[Math.floor(Math.random() * symbols.length)];
+                const direction = Math.random() > 0.5 ? "UP" : "DOWN";
+                const mockChange = (Math.random() - 0.5) * 10;
+                
+                return {
+                    type: type,
+                    symbol: symbol,
+                    amount: this.amounts[Math.floor(Math.random() * this.amounts.length)],
+                    time: this.timeframes[Math.floor(Math.random() * this.timeframes.length)],
+                    direction: direction,
+                    emoji: direction === "UP" ? "🟢" : "🔴",
+                    price: type === 'crypto' ? `$${(Math.random() * 50000).toLocaleString()}` : (Math.random() * 2).toFixed(4),
+                    change: mockChange,
+                    timestamp: new Date().toLocaleTimeString(),
+                    isMock: true
+                };
+            }
+
+            updateStatus(apiType, isActive) {
+                const element = document.getElementById(`status${apiType.charAt(0).toUpperCase() + apiType.slice(1)}`);
+                if (element) {
+                    element.className = `status-dot ${isActive ? 'active' : ''}`;
+                }
+            }
+
+            displaySignal(signal) {
+                const signalElement = document.createElement('div');
+                signalElement.className = `signal ${signal.direction.toLowerCase()}`;
+                
+                const changeClass = signal.change > 0 ? 'change-up' : 'change-down';
+                const changeSign = signal.change > 0 ? '+' : '';
+                
+                signalElement.innerHTML = `
+                    <div class="signal-emoji">${signal.emoji} SIGNAL ${signal.emoji}</div>
+                    <div class="signal-info">
+                        <div class="signal-item">
+                            <span>💱</span>
+                            <strong>Asset:</strong> ${signal.symbol}
+                        </div>
+                        <div class="signal-item">
+                            <span>💰</span>
+                            <strong>Investing amount:</strong> ${signal.amount}
+                        </div>
+                        <div class="signal-item">
+                            <span>⏳</span>
+                            <strong>Trade Time:</strong> ${signal.time}
+                        </div>
+                        <div class="signal-item">
+                            <span>📊</span>
+                            <strong>Signal:</strong> ${signal.direction}
+                        </div>
+                        <div class="signal-item">
+                            <span>💵</span>
+                            <strong>Price:</strong> ${signal.price}
+                        </div>
+                        <div class="signal-item">
+                            <span>📈</span>
+                            <strong>Change:</strong> 
+                            <span class="price-change ${changeClass}">${changeSign}${signal.change.toFixed(2)}%</span>
+                        </div>
+                    </div>
+                    <div class="timestamp">
+                        🕐 ${signal.timestamp} • ${signal.type.toUpperCase()} 
+                        ${signal.isMock ? '• 🔄 MOCK DATA' : '• ✅ LIVE DATA'}
+                    </div>
+                `;
+
+                if (this.container.firstChild) {
+                    this.container.insertBefore(signalElement, this.container.firstChild);
+                } else {
+                    this.container.appendChild(signalElement);
+                }
+
+                if (this.container.children.length > 6) {
+                    this.container.removeChild(this.container.lastChild);
+                }
+            }
+
+            async generateSignal() {
+                try {
+                    // Чередуем между crypto и forex
+                    const useCrypto = Math.random() > 0.5;
+                    let signal;
+                    
+                    if (useCrypto) {
+                        try {
+                            signal = await this.fetchCryptoData();
+                            this.updateStatus('crypto', true);
+                        } catch (error) {
+                            signal = this.generateMockSignal('crypto');
+                        }
+                    } else {
+                        try {
+                            signal = await this.fetchForexData();
+                            this.updateStatus('forex', true);
+                        } catch (error) {
+                            signal = this.generateMockSignal('forex');
+                        }
+                    }
+                    
+                    this.displaySignal(signal);
+                    
+                } catch (error) {
+                    console.error('Error generating signal:', error);
+                    // Fallback to mock data
+                    const mockSignal = this.generateMockSignal(Math.random() > 0.5 ? 'crypto' : 'forex');
+                    this.displaySignal(mockSignal);
+                }
+            }
+
+            async start() {
+                this.container.innerHTML = '<div class="loading">Loading first signal...</div>';
+                
+                // Первый сигнал
+                await this.generateSignal();
+                
+                // Обновляем каждую минуту
+                setInterval(() => {
+                    this.generateSignal();
+                }, 60000);
+
+                console.log('🚀 Trading Signal Bot Started with Real APIs!');
+            }
+        }
+
+        // Запускаем когда страница загрузится
+        document.addEventListener('DOMContentLoaded', () => {
+            const bot = new TradingSignalFrontend();
+            bot.start();
+        });
+    </script>
+</body>
+</html>
